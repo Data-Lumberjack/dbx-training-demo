@@ -38,7 +38,9 @@ requestu z `feature-x` nie usuwaj tej gałęzi, bo pokaz 5.1 używa jej w każde
 1. Profil CLI: `databricks auth login --host <adres workspace'u> --profile prowadzacy`.
    `databricks current-user me -p prowadzacy` pokazuje Twój login.
 2. `databricks bundle validate -t prod -p prowadzacy` kończy się `Validation OK!`.
-3. Próba całości: polecenia pokazu poniżej, potem sprzątanie z części „Po pokazie”.
+3. `szkolenie-etl` ma **Can Use** na **Default Automated Compute** (**Compute** → **Serverless**). Bez tego pipeline
+   w prod kończy się błędem `COST_CONTROL_ENTITLEMENT_DENIED`.
+4. Próba całości: polecenia pokazu poniżej, potem sprzątanie z części „Po pokazie”.
 
 ## Polecenia pokazu
 Terminal VS Code (PowerShell), folder repo, gałąź `main`.
