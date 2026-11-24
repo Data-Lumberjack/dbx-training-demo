@@ -1,0 +1,19 @@
+# Pipeline sales_pipeline na serverless:
+#   orders_clean   - tabela strumieniowa: nowe wiersze z raw_orders, sprawdzone regułami jakości
+#   daily_sales    - widok zmaterializowany: sprzedaż na dzień
+#   category_sales - widok zmaterializowany: sprzedaż na dzień i kategorię
+resources:
+  pipelines:
+    sales_pipeline:
+      name: sales_pipeline_${bundle.target}
+      catalog: ${var.catalog}
+      schema: ${var.schema}                        # tu powstają tabele pipeline'u i stąd czyta raw_orders
+      serverless: true
+      edition: ADVANCED                            # pipeline serverless wymaga edycji Advanced
+      libraries:                                   # pliki z kodem; ścieżki względem tego pliku
+        - file:
+            path: ../src/pipeline/orders_clean.sql
+        - file:
+            path: ../src/pipeline/daily_sales.sql
+        - file:
+            path: ../src/pipeline/category_sales.sql

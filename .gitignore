@@ -1,0 +1,4 @@
+# Lokalny stan bundle'a, który CLI tworzy przy validate i deploy
+.databricks/
+# Pliki pośrednie Pythona
+__pycache__/

@@ -1,0 +1,65 @@
+# Bundle do pokazu w lekcjach 5.2–5.4: projekt sales_etl, trzy targety (dev, test, prod) w jednym workspace szkolenia.
+# Przepływ: zadanie ingest_orders dopisuje partię zamówień do tabeli raw_orders, pipeline ją czyści (orders_clean)
+# i liczy podsumowania (daily_sales, category_sales), a zadanie check_quality sprawdza wynik.
+# W plikach nie ma adresu workspace'u, ID, sekretów ani e-maili: adres bierze profil CLI (-p prowadzacy),
+# ID service principala zmienna lookup, a login osoby, która wdraża, ${workspace.current_user.userName}.
+bundle:
+  name: sales_etl
+
+include:
+  - resources/*.yml                     # job i pipeline w osobnych plikach
+
+variables:
+  catalog:                              # zmienna zwykła, ta sama wartość we wszystkich targetach
+    description: Katalog Unity Catalog. W tym workspace jest jeden, a środowiska rozdzielają schematy.
+    default: szkolenie
+  schema:                               # zmienna zwykła, inna wartość w każdym targecie
+    description: Schemat, do którego pisze target.
+    default: demo_dev
+  job_cluster:                          # zmienna complex: cała definicja klastra jobu
+    description: Klaster jobu dla zadań w notebookach. W dev i test jeden węzeł, w prod sterownik i worker.
+    type: complex
+    default:
+      spark_version: 18.x-scala2.13     # Databricks Runtime 18 LTS
+      node_type_id: Standard_D4ds_v5
+      num_workers: 0                    # jeden węzeł: sterownik liczy sam, bez workerów
+      data_security_mode: SINGLE_USER   # tryb dedicated (SINGLE_USER to jego starsza nazwa w API)
+      spark_conf:                       # ten profil, spark.master i tag ResourceClass razem dają klaster jednowęzłowy
+        spark.databricks.cluster.profile: singleNode
+        spark.master: local[*]
+      custom_tags:
+        ResourceClass: SingleNode
+  etl_sp:                               # zmienna lookup: ID obiektu szukane po nazwie przy wdrożeniu
+    description: Service principal szkolenie-etl, który uruchamia job i pipeline w targecie prod.
+    lookup:
+      service_principal: szkolenie-etl  # CLI wstawia jego application ID
+
+targets:
+  dev:
+    default: true                       # target, gdy polecenie nie ma -t
+    mode: development                   # przedrostek [dev <login>] w nazwach, harmonogram wstrzymany
+  test:
+    mode: development
+    variables:
+      schema: demo_test
+  prod:
+    mode: production                    # nazwy bez przedrostka, harmonogram działa
+    git:
+      branch: main                      # wdrożenie z innej gałęzi kończy się błędem
+    workspace:
+      # Folder domowy osoby, która wdraża: kursanci nie mają do niego dostępu. Do /Shared pisze każdy użytkownik.
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      schema: demo_prod
+      job_cluster:                      # wartość z targetu zastępuje domyślną w całości, więc podajesz cały klaster
+        spark_version: 18.x-scala2.13
+        node_type_id: Standard_D4ds_v5
+        num_workers: 1                  # sterownik i jeden worker
+        data_security_mode: SINGLE_USER
+    run_as:
+      service_principal_name: ${var.etl_sp}             # job i pipeline działają jako szkolenie-etl
+    permissions:                        # dotyczą joba, pipeline'u i folderu bundle'a
+      - level: CAN_MANAGE
+        user_name: ${workspace.current_user.userName}   # osoba, która wdraża
+      - level: CAN_MANAGE
+        service_principal_name: ${var.etl_sp}           # z prawem do folderu odczyta notebooki i pliki SQL

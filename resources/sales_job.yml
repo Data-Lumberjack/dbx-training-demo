@@ -1,0 +1,42 @@
+# Job sales_job: trzy zadania, jedno po drugim.
+#   ingest_orders    - notebook dopisuje partię zamówień z dnia run_date do tabeli raw_orders
+#   refresh_pipeline - odświeża pipeline sales_pipeline (orders_clean, daily_sales, category_sales)
+#   check_quality    - notebook sprawdza wynik; niespełniony warunek kończy run błędem
+resources:
+  jobs:
+    sales_job:
+      name: sales_job_${bundle.target}             # sales_job_dev, sales_job_test albo sales_job_prod
+      max_concurrent_runs: 1                       # najwyżej jeden run naraz
+      timeout_seconds: 3600                        # run dłuższy niż godzina kończy się błędem
+      tags:                                        # trafiają też na klaster jobu, np. do rozliczania kosztów
+        projekt: sales_etl
+        srodowisko: ${bundle.target}
+      parameters:                                  # parametry joba; notebooki czytają je przez dbutils.widgets.get
+        - name: catalog
+          default: ${var.catalog}                  # wartość zmiennej bundle'a, ustalona przy wdrożeniu
+        - name: schema
+          default: ${var.schema}
+        - name: run_date
+          default: "{{job.start_time.iso_date}}"   # dzień startu runu (UTC); inny dzień: bundle run ... --params run_date=...
+      job_clusters:
+        - job_cluster_key: etl_cluster
+          new_cluster: ${var.job_cluster}          # klaster ze zmiennej complex, wspólny dla obu notebooków
+      tasks:
+        - task_key: ingest_orders
+          job_cluster_key: etl_cluster
+          notebook_task:
+            notebook_path: ../src/notebooks/ingest_orders.py     # ścieżka względem tego pliku
+        - task_key: refresh_pipeline
+          depends_on:
+            - task_key: ingest_orders
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.sales_pipeline.id} # pipeline z tego samego bundle'a
+        - task_key: check_quality
+          depends_on:
+            - task_key: refresh_pipeline
+          job_cluster_key: etl_cluster
+          notebook_task:
+            notebook_path: ../src/notebooks/check_quality.py
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?"      # codziennie o 6:00
+        timezone_id: Europe/Warsaw
